@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from pypdf import PdfReader
@@ -5,58 +6,32 @@ from docx import Document
 
 
 def split_sentences(text):
+    text = text.replace("\r", "\n").strip()
+    if not text:
+        return []
     parts = re.split(r"[।.!?]\s+|\n+", text)
-    return [p.strip() for p in parts if p.strip()]
+    return [p.strip(" \t\n\r।.!?") for p in parts if p.strip(" \t\n\r।.!?")]
 
 
-def read_txt(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+def create_chunks(sentences, source, page, window_size=2, overlap=0):
+    if window_size < 1:
+        raise ValueError("window_size must be at least 1")
+    if overlap < 0:
+        raise ValueError("overlap cannot be negative")
+    if overlap >= window_size:
+        raise ValueError("overlap must be smaller than window_size")
 
-
-def read_pdf(path):
-    reader = PdfReader(path)
-    pages = []
-
-    for i, page in enumerate(reader.pages):
-        text = page.extract_text()
-        if text:
-            pages.append((i + 1, text))
-
-    return pages
-
-
-def read_docx(path):
-    doc = Document(path)
-    return [(1, "\n".join(p.text for p in doc.paragraphs))]
-
-
-def load_documents(folder):
-    docs = []
-
-    for file in os.listdir(folder):
-        path = os.path.join(folder, file)
-
-        if file.endswith(".txt"):
-            docs.append((file, 1, read_txt(path)))
-
-        elif file.endswith(".pdf"):
-            pages = read_pdf(path)
-            for page_no, text in pages:
-                docs.append((file, page_no, text))
-
-        elif file.endswith(".docx"):
-            docs.extend([(file, 1, t[1]) for t in read_docx(path)])
-
-    return docs
-
-
-def create_chunks(text, source, page, window=2):
-    sentences = split_sentences(text)
     chunks = []
+    step = window_size - overlap
 
-    for i in range(0, len(sentences), window):
-        chunk_text = " ".join(sentences[i:i + window])
+    for i in range(0, len(sentences), step):
+        window = sentences[i:i + window_size]
+        if not window:
+            continue
+
+        chunk_text = " ".join(window).strip()
+        if not chunk_text:
+            continue
 
         chunks.append({
             "id": len(chunks),
@@ -69,14 +44,67 @@ def create_chunks(text, source, page, window=2):
     return chunks
 
 
-def save_metadata(data, path="data/processed/metadata.json"):
-    import json
+def read_txt(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def read_pdf(path):
+    reader = PdfReader(path)
+    pages = []
+
+    for i, page in enumerate(reader.pages, start=1):
+        text = page.extract_text() or ""
+        if text.strip():
+            pages.append((i, text))
+
+    return pages
+
+
+def read_docx(path):
+    doc = Document(path)
+    text = "\n".join(p.text for p in doc.paragraphs)
+    return text
+
+
+def load_local_documents(folder):
+    docs = []
+
+    for name in sorted(os.listdir(folder)):
+        path = os.path.join(folder, name)
+        if not os.path.isfile(path):
+            continue
+
+        lower = name.lower()
+        if lower.endswith(".txt"):
+            text = read_txt(path)
+            if text.strip():
+                docs.append({"source": name, "page": 1, "text": text})
+
+        elif lower.endswith(".pdf"):
+            for page_no, text in read_pdf(path):
+                if text.strip():
+                    docs.append({"source": name, "page": page_no, "text": text})
+
+        elif lower.endswith(".docx"):
+            text = read_docx(path)
+            if text.strip():
+                docs.append({"source": name, "page": 1, "text": text})
+
+    return docs
+
+
+def save_metadata(chunks, path="data/processed/metadata.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(chunks, f, ensure_ascii=False, indent=2)
 
 
 def load_metadata(path="data/processed/metadata.json"):
-    import json
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def delete_file(path):
+    if path and os.path.exists(path):
+        os.remove(path)
