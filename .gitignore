@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+
+venv/
+.env/
+
+*.faiss
+*.pkl
+*.bin
+*.pt
+*.log
+
+.DS_Store
+.vscode/
