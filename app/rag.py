@@ -10,6 +10,7 @@ from utils import (
     load_local_documents,
     save_metadata,
     load_metadata,
+    save_embeddings_readable,
 )
 
 EMBED_MODEL_NAME = "intfloat/multilingual-e5-base"
@@ -79,6 +80,13 @@ def build_index_from_documents(documents, processed_dir="data/processed", overwr
 
     texts = [c["text"] for c in all_chunks]
     embeddings = embed_chunks(texts)
+
+    save_embeddings_readable(
+        chunks=all_chunks,
+        embeddings=embeddings,
+        path=os.path.join(processed_dir, "embeddings.txt"),
+    )
+
     index = create_index(embeddings)
 
     os.makedirs(processed_dir, exist_ok=True)

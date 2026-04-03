@@ -104,6 +104,23 @@ def load_metadata(path="data/processed/metadata.json"):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def save_embeddings_readable(chunks, embeddings, path="data/processed/embeddings.txt"):
+    import os
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        for i, (chunk, vec) in enumerate(zip(chunks, embeddings)):
+            f.write(f"Chunk ID: {chunk['id']}\n")
+            f.write(f"Source: {chunk['source']}\n")
+            f.write(f"Page: {chunk['page']}\n")
+            f.write(f"Position: {chunk['position']}\n")
+            f.write(f"Text: {chunk['text']}\n")
+
+            f.write("Embedding: [")
+            f.write(", ".join(f"{x:.6f}" for x in vec))
+            f.write("]\n")
+
+            f.write("-" * 80 + "\n")
 
 def delete_file(path):
     if path and os.path.exists(path):
